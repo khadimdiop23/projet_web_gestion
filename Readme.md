@@ -35,7 +35,7 @@ Système d'information pour la gestion d'un réseau de transports urbains (bus/t
 ##  Structure du projet
 
 ```
-transport-urbain/]
+PROJET_WEB]
 ├── sql/
 │   ├── schema.sql             
 │   ├── import_station.sql     
@@ -139,5 +139,6 @@ sqlite -d transport_urbain -f sql/import_stations.sql
 mongoimport --db transport_urbain --collection lignes --file data/lignes.json --jsonArray
 mongosh < mongo/import.js
 ```
+
 
 
