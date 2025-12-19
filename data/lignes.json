@@ -1,0 +1,6 @@
+{
+"vehicules": [
+{"id": "BUS001", "modele": "Iveco Urbanway", "capacite": 110},
+{"id": "TRAM021", "modele": "Alstom Citadis", "capacite": 220}
+]
+}

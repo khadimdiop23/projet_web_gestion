@@ -1,0 +1,12 @@
+<horaires>
+<horaire>
+<ligne>1</ligne>
+<station>1</station>
+<timestamp>2025-02-19T07:30:00</timestamp>
+</horaire>
+<horaire>
+<ligne>1</ligne>
+<station>2</station>
+<timestamp>2025-02-19T07:33:00</timestamp>
+</horaire>
+</horaires>
