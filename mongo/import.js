@@ -1,141 +1,83 @@
 
-db = db.getSiblingDB('transports_urbains');
+// import.js : importer CSV, JSON et XML dans MongoDB
 
-db.stations.insertMany([
-    {
-        _id: 1,
-        nom: "Gare Centre",
-        commune: "Rouen",
-        location: {
-            type: "Point",
-            coordinates: [1.0993, 49.4431] 
-        },
-        lignes_qui_desservent: [1, 2] 
-    },
-    {
-        _id: 2,
-        nom: "Hotel de Ville",
-        commune: "Rouen",
-        location: {
-            type: "Point",
-            coordinates: [1.1001, 49.4425]
-        },
-        lignes_qui_desservent: [1]
-    },
-    {
-        _id: 3,
-        nom: "Universite",
-        commune: "Mont-Saint-Aignan",
-        location: {
-            type: "Point",
-            coordinates: [1.0683, 49.4580]
-        },
-        lignes_qui_desservent: [2]
+
+const fs = require('fs');
+const parse = require('csv-parse/lib/sync');
+const xml2js = require('xml2js');
+const { MongoClient, ObjectId } = require('mongodb');
+
+const url = 'mongodb://localhost:27017';
+const dbName = 'transports_urbains';
+
+async function main() {
+    const client = new MongoClient(url);
+    await client.connect();
+    const db = client.db(dbName);
+
+    console.log("Connecté à MongoDB :", dbName);
+
+    
+    // Import stations CSV
+    
+    const stationsCSV = fs.readFileSync('data/stations.csv', 'utf8');
+    const stations = parse(stationsCSV, {
+        columns: true,
+        skip_empty_lines: true,
+        delimiter: ';'
+    }).map(s => ({
+        _id: parseInt(s.id),
+        nom: s.nom,
+        commune: s.commune,
+        location: { type: "Point", coordinates: [parseFloat(s.longitude), parseFloat(s.latitude)] },
+        lignes_qui_desservent: []
+    }));
+
+    await db.collection('stations').deleteMany({});
+    await db.collection('stations').insertMany(stations);
+    console.log("Stations importées :", stations.length);
+
+    
+    // Import lignes JSON
+    
+    const lignesJSON = JSON.parse(fs.readFileSync('data/lignes.json', 'utf8'));
+    await db.collection('lignes').deleteMany({});
+    await db.collection('lignes').insertMany(lignesJSON);
+    console.log("Lignes importées :", lignesJSON.length);
+
+
+    const vehiculesJSON = JSON.parse(fs.readFileSync('data/vehicules.json', 'utf8'));
+    await db.collection('vehicules').deleteMany({});
+    await db.collection('vehicules').insertMany(vehiculesJSON);
+    console.log("Véhicules importés :", vehiculesJSON.length);
+
+    
+    // Import horaires XML
+    
+    const horairesXML = fs.readFileSync('data/horaires.xml', 'utf8');
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const result = await parser.parseStringPromise(horairesXML);
+    const horaires = result.horaires.horaire.map(h => ({
+        ligne_id: parseInt(h.ligne),
+        station_id: parseInt(h.station),
+        timestamp: new Date(h.timestamp)
+    }));
+
+
+    for (const h of horaires) {
+        await db.collection('lignes').updateOne(
+            { _id: h.ligne_id },
+            { $push: { horaires: h } }
+        );
     }
-]);
+    console.log("Horaires importés :", horaires.length);
 
+    await db.collection('stations').createIndex({ location: "2dsphere" });
+    await db.collection('lignes').createIndex({ "horaires.timestamp": 1 });
+    await db.collection('vehicules').createIndex({ id: 1 });
 
-db.lignes.insertMany([
-    {
-        _id: 1,
-        nom: "T1",
-        type: "Tram",
-        couleur: "#FF0000",
-        horaires: [
-            {
-                station_id: 1,
-                station_nom: "Gare Centre",
-                timestamp: new ISODate("2025-02-19T07:30:00Z"),
-                direction: "Nord"
-            },
-            {
-                station_id: 2,
-                station_nom: "Hotel de Ville",
-                timestamp: new ISODate("2025-02-19T07:33:00Z"),
-                direction: "Nord"
-            },
-            {
-                station_id: 1,
-                station_nom: "Gare Centre",
-                timestamp: new ISODate("2025-02-19T08:00:00Z"),
-                direction: "Sud"
-            },
-            {
-                station_id: 2,
-                station_nom: "Hotel de Ville",
-                timestamp: new ISODate("2025-02-19T08:03:00Z"),
-                direction: "Sud"
-            }
-        ],
-        stations_ids: [1, 2],
-        frequence_matin: "10 min",
-        frequence_soir: "15 min"
-    },
-    {
-        _id: 2,
-        nom: "F2",
-        type: "Bus Rapide",
-        couleur: "#0000FF",
-        horaires: [
-            {
-                station_id: 1,
-                station_nom: "Gare Centre",
-                timestamp: new ISODate("2025-02-19T07:45:00Z"),
-                direction: "Est"
-            },
-            {
-                station_id: 3,
-                station_nom: "Universite",
-                timestamp: new ISODate("2025-02-19T07:55:00Z"),
-                direction: "Est"
-            }
-        ],
-        stations_ids: [1, 3],
-        frequence_matin: "15 min",
-        frequence_soir: "20 min"
-    }
-]);
+    console.log("Import terminé avec succès !");
+    await client.close();
+}
 
-
-db.vehicules.insertMany([
-    {
-        _id: "BUS001",
-        modele: "Iveco Urbanway",
-        capacite: 110,
-        annee_mise_en_service: 2022,
-        lignes_affectees: [2],
-        etat: "En service",
-        derniere_maintenance: new ISODate("2025-01-15T00:00:00Z")
-    },
-    {
-        _id: "TRAM021",
-        modele: "Alstom Citadis",
-        capacite: 220,
-        annee_mise_en_service: 2020,
-        lignes_affectees: [1],
-        etat: "En service",
-        derniere_maintenance: new ISODate("2025-02-01T00:00:00Z")
-    },
-    {
-        _id: "BUS002",
-        modele: "Mercedes Citaro",
-        capacite: 120,
-        annee_mise_en_service: 2023,
-        lignes_affectees: [2],
-        etat: "En service",
-        derniere_maintenance: new ISODate("2025-01-20T00:00:00Z")
-    }
-]);
-
-
-db.lignes.createIndex({ "horaires.timestamp": 1 });
-db.lignes.createIndex({ "horaires.station_id": 1 });
-db.lignes.createIndex({ nom: 1 });
-db.stations.createIndex({ location: "2dsphere" });
-db.stations.createIndex({ "lignes_qui_desservent": 1 });
-db.vehicules.createIndex({ "lignes_affectees": 1 });
-
-print("Import MongoDB terminé avec succès !");
-print(db.stations.countDocuments() + " stations importées");
-print(db.lignes.countDocuments() + " lignes importées");
-print(db.vehicules.countDocuments() + " véhicules importés");
+main().catch(console.error);
